@@ -815,8 +815,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -384, y: 82}
-  m_SizeDelta: {x: 160, y: 30}
+  m_AnchoredPosition: {x: -384, y: -9.303898}
+  m_SizeDelta: {x: 160, y: 263.4253}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &721373958
 GameObject:
@@ -1448,6 +1448,12 @@ MonoBehaviour:
   playersListText: {fileID: 421279593}
   readyButton: {fileID: 192066901}
   startButton: {fileID: 239394299}
+  loadingText: 'LOBBY
+
+    <waiting for network...>'
+  noLobbyText: 'LOBBY
+
+    <waiting for LobbyManager...>'
 --- !u!114 &1262217582
 MonoBehaviour:
   m_ObjectHideFlags: 0

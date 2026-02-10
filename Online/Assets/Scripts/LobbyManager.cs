@@ -4,6 +4,16 @@ using UnityEngine;
 
 public class LobbyManager : NetworkBehaviour
 {
+    [SerializeField] private int minPlayersToStart = 1;
+
+    public bool CanStart()
+    {
+        if (Players.Count < minPlayersToStart) return false;
+        for (int i = 0; i < Players.Count; i++)
+            if (!Players[i].Ready) return false;
+        return true;
+    }
+
     [Serializable]
     public struct LobbyPlayer : INetworkSerializable, IEquatable<LobbyPlayer>
     {
@@ -96,20 +106,12 @@ public class LobbyManager : NetworkBehaviour
         Players.Add(new LobbyPlayer { ClientId = cid, Ready = ready });
     }
 
-    public bool AreAllReady()
-    {
-        if (Players.Count == 0) return false;
-        for (int i = 0; i < Players.Count; i++)
-            if (!Players[i].Ready) return false;
-        return true;
-    }
-
     [ServerRpc(RequireOwnership = false)]
     public void StartGameServerRpc(ServerRpcParams rpcParams = default)
     {
         if (!IsServer) return;
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.LocalClientId) return;
-        if (!AreAllReady()) return;
+        if (!CanStart()) return;
 
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
     }
