@@ -35,7 +35,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.35355, y: 0.24749, z: 0.35355}
-  m_LocalScale: {x: 8, y: 8, z: 8}
+  m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8810002976468848136}
@@ -229,11 +229,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetPlayer
   ShowTopMostFoldoutHeaderGroup: 1
-  moveSpeed: 60
-  mouseSensitivity: 2
+  walkSpeed: 20
+  runSpeed: 35
+  airControl: 0.25
+  jumpHeight: 2
   gravity: -9.81
+  fallMultiplier: 1.6
+  groundStick: -2
+  mouseSensitivity: 2
   cameraPivot: {fileID: 8810002976468848136}
   playerCamera: {fileID: 4263496901161571769}
+  runKey: 304
+  compensateSpeedForScale: 0
 --- !u!114 &9178409113732634713
 MonoBehaviour:
   m_ObjectHideFlags: 0

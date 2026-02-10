@@ -1,37 +1,56 @@
-using System.Globalization;
 using Unity.Netcode;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
 public class NetPlayer : NetworkBehaviour
 {
-    [Header("Movement")]
-    public float moveSpeed = 5f;
-    public float mouseSensitivity = 2f;
-    public float gravity = -9.81f;
+    [Header("Speed")]
+    [SerializeField] private float walkSpeed = 7.5f;
+    [SerializeField] private float runSpeed = 11.5f;
 
-    private Renderer[] rends;
+    [Header("Air control (0..1)")]
+    [Tooltip("0 = почти нет управления в воздухе, 1 = как на земле")]
+    [Range(0f, 1f)]
+    [SerializeField] private float airControl = 0.25f;
 
-    [Header("Refs")]
-    public Transform cameraPivot; 
-    public Camera playerCamera;   
+    [Header("Jump / Gravity (snappy)")]
+    [SerializeField] private float jumpHeight = 1.15f;
+    [SerializeField] private float gravity = -38f;
+
+    [Tooltip("Ускоряет падение (чтобы не висеть в воздухе)")]
+    [SerializeField] private float fallMultiplier = 1.6f;
+
+    [Tooltip("Сильнее прижимает к земле, чтобы не подпрыгивал на склонах")]
+    [SerializeField] private float groundStick = -6f;
+
+    [Header("Look")]
+    [SerializeField] private float mouseSensitivity = 2.0f;
+    [SerializeField] private Transform cameraPivot;
+    [SerializeField] private Camera playerCamera;
+
+    [Header("Run key")]
+    [SerializeField] private KeyCode runKey = KeyCode.LeftShift;
+
+    [Header("Scale Compensation (player scale = 2)")]
+    [SerializeField] private bool compensateSpeedForScale = true;
 
     private CharacterController cc;
-    private Vector3 velocity;
     private float pitch;
 
+    private Vector3 planarVel;
+    private float verticalVel;
+
+    private Renderer[] rends;
     private NetGameManager gm;
 
     public override void OnNetworkSpawn()
     {
         cc = GetComponent<CharacterController>();
 
- 
         if (playerCamera != null)
             playerCamera.enabled = IsOwner;
 
         rends = GetComponentsInChildren<Renderer>(true);
-
         foreach (var r in rends)
             r.enabled = !IsOwner;
 
@@ -43,15 +62,12 @@ public class NetPlayer : NetworkBehaviour
 
         gm = FindFirstObjectByType<NetGameManager>();
         if (gm != null && IsOwner)
-        {
             gm.RegisterPlayerServerRpc(NetworkManager.Singleton.LocalClientId);
-        }
     }
 
     private void Update()
     {
         if (!IsOwner) return;
-
         Look();
         Move();
     }
@@ -64,7 +80,7 @@ public class NetPlayer : NetworkBehaviour
         transform.Rotate(Vector3.up * mx);
 
         pitch -= my;
-        pitch = Mathf.Clamp(pitch, -80f, 80f);
+        pitch = Mathf.Clamp(pitch, -85f, 85f);
 
         if (cameraPivot != null)
             cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
@@ -72,14 +88,63 @@ public class NetPlayer : NetworkBehaviour
 
     private void Move()
     {
-        float x = Input.GetAxis("Horizontal");
-        float z = Input.GetAxis("Vertical");
+        bool grounded = cc.isGrounded;
 
-        Vector3 move = transform.right * x + transform.forward * z;
-        cc.Move(move * moveSpeed * Time.deltaTime);
+        float x = Input.GetAxisRaw("Horizontal");
+        float z = Input.GetAxisRaw("Vertical");
+        Vector3 input = new Vector3(x, 0f, z);
+        if (input.sqrMagnitude > 1f) input.Normalize();
 
-        if (cc.isGrounded && velocity.y < 0) velocity.y = -2f;
-        velocity.y += gravity * Time.deltaTime;
-        cc.Move(velocity * Time.deltaTime);
+        bool running = Input.GetKey(runKey);
+        float speed = running ? runSpeed : walkSpeed;
+
+        if (compensateSpeedForScale)
+        {
+            float s = Mathf.Max(0.0001f, transform.lossyScale.x);
+            speed /= s;
+        }
+
+        Vector3 wishDir = transform.right * input.x + transform.forward * input.z;
+        if (wishDir.sqrMagnitude > 1f) wishDir.Normalize();
+
+        Vector3 desiredPlanar = wishDir * speed;
+
+        if (grounded)
+        {
+            planarVel = desiredPlanar;
+
+            if (verticalVel < 0f) verticalVel = groundStick;
+
+            if (Input.GetButtonDown("Jump"))
+                verticalVel = Mathf.Sqrt(2f * jumpHeight * -gravity);
+        }
+        else
+        {
+            planarVel = Vector3.Lerp(planarVel, desiredPlanar, airControl);
+
+            float g = gravity;
+            if (verticalVel < 0f) g *= fallMultiplier;
+
+            verticalVel += g * Time.deltaTime;
+
+            ApplyMotion();
+            return;
+        }
+
+        verticalVel += gravity * Time.deltaTime;
+
+        ApplyMotion();
+    }
+
+    private void ApplyMotion()
+    {
+        Vector3 motion = (planarVel + Vector3.up * verticalVel) * Time.deltaTime;
+        cc.Move(motion);
+
+        if ((cc.collisionFlags & CollisionFlags.Above) != 0 && verticalVel > 0f)
+            verticalVel = 0f;
+
+        if (cc.isGrounded && verticalVel < 0f)
+            verticalVel = groundStick;
     }
 }
