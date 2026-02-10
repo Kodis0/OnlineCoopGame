@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(CharacterController))]
 public class NetPlayer : NetworkBehaviour
@@ -56,8 +57,8 @@ public class NetPlayer : NetworkBehaviour
 
         if (cameraPivot != null && IsOwner)
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            //Cursor.lockState = CursorLockMode.Locked;
+            //Cursor.visible = false;
         }
 
         gm = FindFirstObjectByType<NetGameManager>();
@@ -68,9 +69,30 @@ public class NetPlayer : NetworkBehaviour
     private void Update()
     {
         if (!IsOwner) return;
-        Look();
-        Move();
+
+        bool inGame = SceneManager.GetActiveScene().name == "Game";
+
+        if (inGame)
+        {
+            if (Cursor.lockState != CursorLockMode.Locked)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+
+            Look();
+            Move();
+        }
+        else
+        {
+            if (Cursor.lockState != CursorLockMode.None)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
     }
+
 
     private void Look()
     {

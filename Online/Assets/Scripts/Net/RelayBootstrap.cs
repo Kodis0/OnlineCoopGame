@@ -8,27 +8,35 @@ using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using UnityEngine;
 using UnityEngine.UI;
-
-using Unity.Networking.Transport.Relay; 
+using Unity.Networking.Transport.Relay;
 
 public class RelayBootstrap : MonoBehaviour
 {
+    [Header("Buttons")]
     public Button hostButton;
     public Button clientButton;
 
-    public InputField joinCodeInput; 
-    public Text joinCodeText;      
+    [Header("Join Code Input (client)")]
+    public InputField joinCodeInput;
 
-    public int maxPlayers = 5;       
+    [Header("UI Panels")]
+    public GameObject panelConnect;
+    public GameObject panelLobby;
+
+    [Header("Relay")]
+    public int maxPlayers = 5;
     public string connectionType = "udp";
 
-    public string gameSceneName = "Game";
-    public GameObject menuRoot;
+    public LobbyManager lobbyManagerInScene;
+    public NetworkObject lobbyManagerPrefab;
 
     private async void Awake()
     {
-        hostButton.onClick.AddListener(() => _ = StartHostRelay());
-        clientButton.onClick.AddListener(() => _ = StartClientRelay());
+        if (panelConnect != null) panelConnect.SetActive(true);
+        if (panelLobby != null) panelLobby.SetActive(false);
+
+        if (hostButton != null) hostButton.onClick.AddListener(() => _ = StartHostRelay());
+        if (clientButton != null) clientButton.onClick.AddListener(() => _ = StartClientRelay());
 
         await InitServices();
     }
@@ -38,7 +46,6 @@ public class RelayBootstrap : MonoBehaviour
         try
         {
             await UnityServices.InitializeAsync();
-
             if (!AuthenticationService.Instance.IsSignedIn)
                 await AuthenticationService.Instance.SignInAnonymouslyAsync();
         }
@@ -46,6 +53,12 @@ public class RelayBootstrap : MonoBehaviour
         {
             Debug.LogError("Services init/auth failed: " + e);
         }
+    }
+
+    private void ShowLobbyUI()
+    {
+        if (panelConnect != null) panelConnect.SetActive(false);
+        if (panelLobby != null) panelLobby.SetActive(true);
     }
 
     private async Task StartHostRelay()
@@ -59,12 +72,29 @@ public class RelayBootstrap : MonoBehaviour
                 JoinCodeStore.Instance.SetCode(joinCode);
 
             var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            transport.SetRelayServerData(new Unity.Networking.Transport.Relay.RelayServerData(alloc, connectionType));
+            transport.SetRelayServerData(new RelayServerData(alloc, connectionType));
 
             NetworkManager.Singleton.StartHost();
 
-            if (menuRoot != null) menuRoot.SetActive(false);
-            NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+            if (lobbyManagerPrefab != null)
+            {
+                var existing = FindFirstObjectByType<LobbyManager>();
+                if (existing == null)
+                {
+                    var no = Instantiate(lobbyManagerPrefab);
+                    no.Spawn(true);
+                }
+            }
+
+            var lm = FindFirstObjectByType<LobbyManager>();
+            if (lm != null)
+            {
+                var no = lm.GetComponent<NetworkObject>();
+                if (no != null && !no.IsSpawned)
+                    no.Spawn();
+            }
+
+            ShowLobbyUI();
         }
         catch (Exception e)
         {
@@ -76,23 +106,21 @@ public class RelayBootstrap : MonoBehaviour
     {
         try
         {
-            string joinCode = joinCodeInput != null ? joinCodeInput.text.Trim() : "";
-            if (string.IsNullOrEmpty(joinCode))
+            string code = joinCodeInput != null ? joinCodeInput.text.Trim() : "";
+            if (string.IsNullOrEmpty(code))
             {
                 Debug.LogError("Join code is empty.");
                 return;
             }
 
-            JoinAllocation allocation = await RelayService.Instance.JoinAllocationAsync(joinCode);
+            JoinAllocation alloc = await RelayService.Instance.JoinAllocationAsync(code);
 
             var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            var relayServerData = new RelayServerData(allocation, connectionType);
-            transport.SetRelayServerData(relayServerData);
+            transport.SetRelayServerData(new RelayServerData(alloc, connectionType));
 
             NetworkManager.Singleton.StartClient();
 
-            NetworkManager.Singleton.StartClient();
-            if (menuRoot != null) menuRoot.SetActive(false);
+            ShowLobbyUI();
         }
         catch (Exception e)
         {
